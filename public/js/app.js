@@ -142,59 +142,44 @@ document.addEventListener('DOMContentLoaded', () => {
         const seed = Math.floor(Math.random() * 999999999);
 
         const workflow = {
-            "6": {
+            "1": {
+                "class_type": "CheckpointLoaderSimple",
+                "inputs": { "ckpt_name": "flux1-schnell-fp8.safetensors" }
+            },
+            "2": {
+                "class_type": "CLIPTextEncode",
+                "inputs": { "text": prompt, "clip": ["1", 1] }
+            },
+            "3": {
+                "class_type": "CLIPTextEncode",
+                "inputs": { "text": "text, watermark, blurry, low quality", "clip": ["1", 1] }
+            },
+            "4": {
                 "class_type": "EmptyLatentImage",
                 "inputs": { "width": w, "height": h, "batch_size": 1 }
             },
-            "8": {
-                "class_type": "VAEDecode",
-                "inputs": { "samples": ["13", 0], "vae": ["10", 0] }
-            },
-            "9": {
-                "class_type": "SaveImage",
-                "inputs": { "filename_prefix": "GorselAjans", "images": ["8", 0] }
-            },
-            "10": {
-                "class_type": "VAELoader",
-                "inputs": { "vae_name": "ae.safetensors" }
-            },
-            "11": {
-                "class_type": "DualCLIPLoader",
-                "inputs": {
-                    "clip_name1": "clip_l.safetensors",
-                    "clip_name2": "t5xxl_fp8_e4m3fn.safetensors",
-                    "type": "flux"
-                }
-            },
-            "12": {
-                "class_type": "UNETLoader",
-                "inputs": {
-                    "unet_name": "flux1-schnell-fp8.safetensors",
-                    "weight_dtype": "fp8_e4m3fn"
-                }
-            },
-            "13": {
+            "5": {
                 "class_type": "KSampler",
                 "inputs": {
                     "seed": seed,
                     "steps": 4,
                     "cfg": 1.0,
                     "sampler_name": "euler",
-                    "scheduler": "simple",
+                    "scheduler": "normal",
                     "denoise": 1.0,
-                    "model": ["12", 0],
-                    "positive": ["16", 0],
-                    "negative": ["17", 0],
-                    "latent_image": ["6", 0]
+                    "model": ["1", 0],
+                    "positive": ["2", 0],
+                    "negative": ["3", 0],
+                    "latent_image": ["4", 0]
                 }
             },
-            "16": {
-                "class_type": "CLIPTextEncode",
-                "inputs": { "text": prompt, "clip": ["11", 0] }
+            "6": {
+                "class_type": "VAEDecode",
+                "inputs": { "samples": ["5", 0], "vae": ["1", 2] }
             },
-            "17": {
-                "class_type": "CLIPTextEncode",
-                "inputs": { "text": "", "clip": ["11", 0] }
+            "7": {
+                "class_type": "SaveImage",
+                "inputs": { "filename_prefix": "GorselAjans", "images": ["6", 0] }
             }
         };
 
