@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Görsel Ajans - AI Görsel Üretici</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                        <rect width="32" height="32" rx="8" fill="url(#logo-grad)"/>
+                        <path d="M8 16L14 10L20 16L14 22L8 16Z" fill="white" opacity="0.9"/>
+                        <path d="M14 16L20 10L26 16L20 22L14 16Z" fill="white" opacity="0.6"/>
+                        <defs>
+                            <linearGradient id="logo-grad" x1="0" y1="0" x2="32" y2="32">
+                                <stop stop-color="#8B5CF6"/>
+                                <stop offset="1" stop-color="#EC4899"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <span class="logo-text">Görsel Ajans</span>
+            </div>
+            <div class="header-badge">
+                <span class="badge-dot"></span>
+                <span id="activeBadge">Pollinations - FLUX</span>
+            </div>
+        </header>
+
+        <main class="main">
+            <section class="panel panel-controls">
+                <div class="panel-header">
+                    <h2>Görsel Oluştur</h2>
+                    <p class="panel-subtitle">Hayal et, yaz, üret.</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="prompt">Prompt</label>
+                    <textarea
+                        id="prompt"
+                        placeholder="Bir sahne hayal et ve detaylıca anlat... Örneğin: A majestic white wolf standing on a snowy mountain peak at golden hour, cinematic lighting, ultra detailed, 8K"
+                        rows="5"
+                    ></textarea>
+                    <div class="char-count"><span id="charCount">0</span> karakter</div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="provider">Sağlayıcı</label>
+                        <div class="select-wrapper">
+                            <select id="provider">
+                                <option value="pollinations">Pollinations (Ücretsiz)</option>
+                                <option value="higgsfield">Higgsfield (Kredili)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group" id="modelGroup">
+                        <label for="model">Model</label>
+                        <div class="select-wrapper">
+                            <select id="model">
+                                <option value="flux">FLUX</option>
+                                <option value="flux-realism">FLUX Realism</option>
+                                <option value="flux-anime">FLUX Anime</option>
+                                <option value="flux-3d">FLUX 3D</option>
+                                <option value="flux-cablyai">CablyAI</option>
+                                <option value="turbo">Turbo (Hızlı)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group" id="resolutionGroup">
+                        <label for="resolution">Çözünürlük</label>
+                        <div class="select-wrapper">
+                            <select id="resolution">
+                                <option value="1K">1K (1024px)</option>
+                                <option value="2K" selected>2K (2048px)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="aspectRatio">En Boy Oranı</label>
+                        <div class="select-wrapper">
+                            <select id="aspectRatio">
+                                <option value="1:1">1:1 Kare</option>
+                                <option value="16:9">16:9 Geniş</option>
+                                <option value="9:16">9:16 Dikey</option>
+                                <option value="4:3">4:3 Klasik</option>
+                                <option value="3:4">3:4 Portre</option>
+                                <option value="3:2">3:2 Fotoğraf</option>
+                                <option value="2:3">2:3 Poster</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="suggestions">
+                    <label>Hızlı Öneriler</label>
+                    <div class="suggestion-chips">
+                        <button class="chip" data-prompt="A cyberpunk cityscape at night with neon lights reflecting on wet streets, flying cars, holographic advertisements, ultra detailed, 8K cinematic">Cyberpunk Şehir</button>
+                        <button class="chip" data-prompt="A serene Japanese zen garden with cherry blossoms falling, koi pond, stone lanterns, morning mist, soft natural lighting, photorealistic">Zen Bahçe</button>
+                        <button class="chip" data-prompt="An astronaut floating in deep space with a galaxy swirling behind them, stars and nebulae, cosmic atmosphere, hyper realistic, cinematic composition">Uzay Kaşifi</button>
+                        <button class="chip" data-prompt="A cozy cabin interior with a fireplace, bookshelves, warm lighting, snow visible through windows, hygge atmosphere, architectural photography style">Kış Kabini</button>
+                        <button class="chip" data-prompt="A fantasy dragon perched on a castle tower, dramatic storm clouds, lightning, medieval architecture, epic scale, detailed scales and wings, concept art style">Fantastik Ejderha</button>
+                        <button class="chip" data-prompt="An underwater coral reef scene with tropical fish, sunlight rays penetrating water, sea turtles, vibrant colors, National Geographic photography style">Okyanus Derinlikleri</button>
+                    </div>
+                </div>
+
+                <button id="generateBtn" class="btn-generate">
+                    <svg class="btn-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M10 2L12.5 7.5L18 10L12.5 12.5L10 18L7.5 12.5L2 10L7.5 7.5L10 2Z" fill="currentColor"/>
+                    </svg>
+                    <span>Görsel Üret</span>
+                </button>
+            </section>
+
+            <section class="panel panel-result">
+                <div id="emptyState" class="empty-state">
+                    <div class="empty-icon">
+                        <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
+                            <rect x="8" y="8" width="64" height="64" rx="16" stroke="currentColor" stroke-width="2" stroke-dasharray="6 4" opacity="0.3"/>
+                            <path d="M30 45L37 38L44 45" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.4"/>
+                            <path d="M40 50L50 38L56 45" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.4"/>
+                            <circle cx="34" cy="32" r="3" stroke="currentColor" stroke-width="2" opacity="0.4"/>
+                        </svg>
+                    </div>
+                    <h3>Henüz görsel yok</h3>
+                    <p>Bir prompt yazın ve "Görsel Üret" butonuna tıklayın</p>
+                </div>
+
+                <div id="loadingState" class="loading-state" style="display:none">
+                    <div class="loader">
+                        <div class="loader-ring"></div>
+                        <div class="loader-ring"></div>
+                        <div class="loader-ring"></div>
+                    </div>
+                    <h3>Görsel üretiliyor...</h3>
+                    <p id="loadingStatus">Sırada bekleniyor</p>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <p class="loading-tip" id="loadingTip">AI modeli görselinizi oluşturuyor, bu birkaç saniye sürebilir.</p>
+                </div>
+
+                <div id="resultState" class="result-state" style="display:none">
+                    <div class="result-image-container">
+                        <img id="resultImage" src="" alt="Üretilen görsel">
+                    </div>
+                    <div class="result-actions">
+                        <button id="downloadBtn" class="btn-action btn-download">
+                            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                                <path d="M9 2V12M9 12L5 8M9 12L13 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                <path d="M2 14H16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                            İndir
+                        </button>
+                        <button id="newTabBtn" class="btn-action btn-newtab">
+                            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                                <path d="M14 10V14C14 15.1 13.1 16 12 16H4C2.9 16 2 15.1 2 14V6C2 4.9 2.9 4 4 4H8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                <path d="M11 2H16V7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M16 2L8 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                            Yeni Sekmede Aç
+                        </button>
+                        <button id="regenerateBtn" class="btn-action btn-regen">
+                            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                                <path d="M2 9C2 5.13 5.13 2 9 2C12.87 2 16 5.13 16 9C16 12.87 12.87 16 9 16C6.65 16 4.57 14.85 3.33 13.08" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                <path d="M2 14V10H6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            Tekrar Üret
+                        </button>
+                    </div>
+                </div>
+
+                <div id="errorState" class="error-state" style="display:none">
+                    <div class="error-icon">
+                        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                            <circle cx="24" cy="24" r="20" stroke="#EF4444" stroke-width="2"/>
+                            <path d="M24 16V28" stroke="#EF4444" stroke-width="2" stroke-linecap="round"/>
+                            <circle cx="24" cy="34" r="1.5" fill="#EF4444"/>
+                        </svg>
+                    </div>
+                    <h3>Bir hata oluştu</h3>
+                    <p id="errorMessage">Bilinmeyen hata</p>
+                    <button id="retryBtn" class="btn-generate btn-retry">Tekrar Dene</button>
+                </div>
+
+                <div id="gallery" class="gallery">
+                    <div class="gallery-header">
+                        <h3>Son Üretilen Görseller</h3>
+                        <button id="clearGallery" class="btn-clear" style="display:none">Temizle</button>
+                    </div>
+                    <div id="galleryGrid" class="gallery-grid"></div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>
