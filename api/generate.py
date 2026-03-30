@@ -1,62 +1,52 @@
-import os
 import json
-import higgsfield_client
+from http.server import BaseHTTPRequestHandler
 
 
-def handler(request):
-    """Vercel serverless function - Higgsfield ile görsel üretimi."""
-    if request.method == "OPTIONS":
-        return {
-            "statusCode": 200,
-            "headers": {
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "POST,OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type",
-            },
-            "body": "",
-        }
+class handler(BaseHTTPRequestHandler):
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "POST,OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
 
-    if request.method != "POST":
-        return {"statusCode": 405, "body": json.dumps({"error": "Method not allowed"})}
+    def do_POST(self):
+        content_length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(content_length)
 
-    try:
-        data = json.loads(request.body)
-    except Exception:
-        return {"statusCode": 400, "body": json.dumps({"error": "Geçersiz istek"})}
+        try:
+            data = json.loads(body)
+        except Exception:
+            self._respond(400, {"error": "Geçersiz istek"})
+            return
 
-    prompt = data.get("prompt", "").strip()
-    if not prompt:
-        return {"statusCode": 400, "body": json.dumps({"error": "Prompt boş olamaz"})}
+        prompt = data.get("prompt", "").strip()
+        if not prompt:
+            self._respond(400, {"error": "Prompt boş olamaz"})
+            return
 
-    resolution = data.get("resolution", "2K")
-    aspect_ratio = data.get("aspect_ratio", "1:1")
+        try:
+            import os
+            os.environ.setdefault("HF_API_KEY", os.getenv("HF_API_KEY", ""))
+            os.environ.setdefault("HF_API_SECRET", os.getenv("HF_API_SECRET", ""))
+            import higgsfield_client
 
-    try:
-        result = higgsfield_client.subscribe(
-            "bytedance/seedream/v4/text-to-image",
-            arguments={
-                "prompt": prompt,
-                "resolution": resolution,
-                "aspect_ratio": aspect_ratio,
-                "camera_fixed": False,
-            },
-        )
-        image_url = result["images"][0]["url"]
+            result = higgsfield_client.subscribe(
+                "bytedance/seedream/v4/text-to-image",
+                arguments={
+                    "prompt": prompt,
+                    "resolution": data.get("resolution", "2K"),
+                    "aspect_ratio": data.get("aspect_ratio", "1:1"),
+                    "camera_fixed": False,
+                },
+            )
+            self._respond(200, {"url": result["images"][0]["url"]})
+        except Exception as e:
+            self._respond(500, {"error": str(e)})
 
-        return {
-            "statusCode": 200,
-            "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*",
-            },
-            "body": json.dumps({"url": image_url}),
-        }
-    except Exception as e:
-        return {
-            "statusCode": 500,
-            "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*",
-            },
-            "body": json.dumps({"error": str(e)}),
-        }
+    def _respond(self, status, data):
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(json.dumps(data).encode())
