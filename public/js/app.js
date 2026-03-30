@@ -28,7 +28,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentImageUrl = null;
     let currentPrompt = null;
 
-    // En-boy oranı → piksel boyutları
     const ASPECT_SIZES = {
         '1:1': [1024, 1024],
         '16:9': [1344, 768],
@@ -39,30 +38,35 @@ document.addEventListener('DOMContentLoaded', () => {
         '2:3': [832, 1216],
     };
 
+    const COMFYUI_URL = 'http://127.0.0.1:8188';
+
     renderGallery();
     updateProviderUI();
 
-    // Character count
     promptEl.addEventListener('input', () => {
         charCount.textContent = promptEl.value.length;
     });
 
-    // Provider / model değişimi
     providerEl.addEventListener('change', updateProviderUI);
-    modelEl.addEventListener('change', () => {
-        activeBadge.textContent = `Pollinations - ${modelEl.options[modelEl.selectedIndex].text}`;
-    });
+    modelEl.addEventListener('change', updateProviderUI);
 
     function updateProviderUI() {
-        const isPollinations = providerEl.value === 'pollinations';
+        const provider = providerEl.value;
+        const isPollinations = provider === 'pollinations';
+        const isComfy = provider === 'comfyui';
+
         modelGroup.style.display = isPollinations ? '' : 'none';
-        resolutionGroup.style.display = isPollinations ? 'none' : '';
-        activeBadge.textContent = isPollinations
-            ? `Pollinations - ${modelEl.options[modelEl.selectedIndex].text}`
-            : 'Higgsfield - Seedream v4';
+        resolutionGroup.style.display = 'none';
+
+        if (isPollinations) {
+            activeBadge.textContent = `Pollinations - ${modelEl.options[modelEl.selectedIndex].text}`;
+        } else if (isComfy) {
+            activeBadge.textContent = 'ComfyUI - FLUX Schnell (Lokal)';
+        } else {
+            activeBadge.textContent = 'Higgsfield - Nano Banana Pro';
+        }
     }
 
-    // Suggestion chips
     document.querySelectorAll('.chip').forEach(chip => {
         chip.addEventListener('click', () => {
             promptEl.value = chip.dataset.prompt;
@@ -82,7 +86,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state === 'error') errorState.style.display = '';
     }
 
-    // Ana üretim fonksiyonu
     async function generate() {
         const prompt = promptEl.value.trim();
         if (!prompt) { promptEl.focus(); return; }
@@ -97,12 +100,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (provider === 'pollinations') {
             await generateWithPollinations(prompt);
+        } else if (provider === 'comfyui') {
+            await generateWithComfyUI(prompt);
         } else {
             await generateWithHiggsfield(prompt);
         }
     }
 
-    // Pollinations - doğrudan frontend'den, backend gerektirmez
+    // Pollinations
     async function generateWithPollinations(prompt) {
         const aspect = aspectRatioEl.value;
         const [w, h] = ASPECT_SIZES[aspect] || [1024, 1024];
@@ -114,40 +119,157 @@ document.addEventListener('DOMContentLoaded', () => {
 
         loadingStatus.textContent = 'Pollinations API ile görsel üretiliyor...';
 
-        // Görseli bir Image nesnesi ile yükle, hazır olunca göster
         const img = new Image();
         img.crossOrigin = 'anonymous';
 
-        const statusMessages = [
-            'AI modeli yükleniyor...',
-            'Prompt analiz ediliyor...',
-            'Görsel oluşturuluyor...',
-            'Pikseller yerleştiriliyor...',
-            'Detaylar ekleniyor...',
-            'Son rötuşlar yapılıyor...'
-        ];
+        const statusMessages = ['AI modeli yükleniyor...', 'Prompt analiz ediliyor...', 'Görsel oluşturuluyor...', 'Detaylar ekleniyor...', 'Son rötuşlar yapılıyor...'];
         let msgIndex = 0;
         const statusInterval = setInterval(() => {
-            if (msgIndex < statusMessages.length) {
-                loadingStatus.textContent = statusMessages[msgIndex];
-                msgIndex++;
-            }
+            if (msgIndex < statusMessages.length) { loadingStatus.textContent = statusMessages[msgIndex]; msgIndex++; }
         }, 3000);
 
-        img.onload = () => {
-            clearInterval(statusInterval);
-            showResult(imageUrl);
-        };
-
-        img.onerror = () => {
-            clearInterval(statusInterval);
-            showError('Görsel yüklenemedi. Lütfen tekrar deneyin.');
-        };
-
+        img.onload = () => { clearInterval(statusInterval); showResult(imageUrl); };
+        img.onerror = () => { clearInterval(statusInterval); showError('Görsel yüklenemedi. Lütfen tekrar deneyin.'); };
         img.src = imageUrl;
     }
 
-    // Higgsfield - Vercel serverless function üzerinden
+    // ComfyUI - Lokal FLUX Schnell
+    async function generateWithComfyUI(prompt) {
+        loadingStatus.textContent = 'ComfyUI bağlantısı kontrol ediliyor...';
+
+        const aspect = aspectRatioEl.value;
+        const [w, h] = ASPECT_SIZES[aspect] || [1024, 1024];
+        const seed = Math.floor(Math.random() * 999999999);
+
+        const workflow = {
+            "6": {
+                "class_type": "EmptyLatentImage",
+                "inputs": { "width": w, "height": h, "batch_size": 1 }
+            },
+            "8": {
+                "class_type": "VAEDecode",
+                "inputs": { "samples": ["13", 0], "vae": ["10", 0] }
+            },
+            "9": {
+                "class_type": "SaveImage",
+                "inputs": { "filename_prefix": "GorselAjans", "images": ["8", 0] }
+            },
+            "10": {
+                "class_type": "VAELoader",
+                "inputs": { "vae_name": "ae.safetensors" }
+            },
+            "11": {
+                "class_type": "DualCLIPLoader",
+                "inputs": {
+                    "clip_name1": "clip_l.safetensors",
+                    "clip_name2": "t5xxl_fp8_e4m3fn.safetensors",
+                    "type": "flux"
+                }
+            },
+            "12": {
+                "class_type": "UNETLoader",
+                "inputs": {
+                    "unet_name": "flux1-schnell-fp8.safetensors",
+                    "weight_dtype": "fp8_e4m3fn"
+                }
+            },
+            "13": {
+                "class_type": "KSampler",
+                "inputs": {
+                    "seed": seed,
+                    "steps": 4,
+                    "cfg": 1.0,
+                    "sampler_name": "euler",
+                    "scheduler": "simple",
+                    "denoise": 1.0,
+                    "model": ["12", 0],
+                    "positive": ["16", 0],
+                    "negative": ["17", 0],
+                    "latent_image": ["6", 0]
+                }
+            },
+            "16": {
+                "class_type": "CLIPTextEncode",
+                "inputs": { "text": prompt, "clip": ["11", 0] }
+            },
+            "17": {
+                "class_type": "CLIPTextEncode",
+                "inputs": { "text": "", "clip": ["11", 0] }
+            }
+        };
+
+        try {
+            loadingStatus.textContent = 'Görsel üretimi başlatılıyor...';
+
+            // Prompt gönder
+            const queueRes = await fetch(`${COMFYUI_URL}/prompt`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: workflow })
+            });
+
+            if (!queueRes.ok) {
+                const err = await queueRes.json().catch(() => ({}));
+                throw new Error(err.error?.message || 'ComfyUI isteği başarısız');
+            }
+
+            const { prompt_id } = await queueRes.json();
+            loadingStatus.textContent = 'RTX 5090 görsel üretiyor...';
+
+            // Sonucu bekle
+            const imageUrl = await waitForComfyResult(prompt_id);
+            showResult(imageUrl);
+
+        } catch (err) {
+            if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+                showError('ComfyUI bağlantısı kurulamadı. Pinokio\'dan ComfyUI\'ın çalıştığından emin olun.');
+            } else {
+                showError(err.message);
+            }
+        }
+    }
+
+    async function waitForComfyResult(promptId) {
+        const statusMessages = ['GPU modeli yüklüyor...', 'Latent space oluşturuluyor...', 'Sampling yapılıyor...', 'VAE decode ediliyor...'];
+        let msgIndex = 0;
+        const statusInterval = setInterval(() => {
+            if (msgIndex < statusMessages.length) { loadingStatus.textContent = statusMessages[msgIndex]; msgIndex++; }
+        }, 2000);
+
+        return new Promise((resolve, reject) => {
+            const checkHistory = async () => {
+                try {
+                    const res = await fetch(`${COMFYUI_URL}/history/${promptId}`);
+                    const data = await res.json();
+
+                    if (data[promptId]) {
+                        clearInterval(statusInterval);
+                        const outputs = data[promptId].outputs;
+
+                        // SaveImage node'unun çıktısını bul
+                        for (const nodeId in outputs) {
+                            if (outputs[nodeId].images && outputs[nodeId].images.length > 0) {
+                                const img = outputs[nodeId].images[0];
+                                const imageUrl = `${COMFYUI_URL}/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || '')}&type=${img.type || 'output'}`;
+                                resolve(imageUrl);
+                                return;
+                            }
+                        }
+                        reject(new Error('Görsel çıktısı bulunamadı'));
+                        return;
+                    }
+
+                    setTimeout(checkHistory, 1000);
+                } catch (err) {
+                    clearInterval(statusInterval);
+                    reject(err);
+                }
+            };
+            checkHistory();
+        });
+    }
+
+    // Higgsfield
     async function generateWithHiggsfield(prompt) {
         loadingStatus.textContent = 'Higgsfield API\'ye istek gönderiliyor...';
 
@@ -165,7 +287,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'İstek başarısız');
-
             showResult(data.url);
         } catch (err) {
             showError(err.message);
@@ -178,11 +299,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showState('result');
         resetButton();
 
-        gallery.unshift({
-            url: imageUrl,
-            prompt: currentPrompt,
-            date: new Date().toISOString()
-        });
+        gallery.unshift({ url: imageUrl, prompt: currentPrompt, date: new Date().toISOString() });
         if (gallery.length > 20) gallery = gallery.slice(0, 20);
         localStorage.setItem('gorselAjansGallery', JSON.stringify(gallery));
         renderGallery();
@@ -231,7 +348,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return div.innerHTML;
     }
 
-    // Event listeners
     generateBtn.addEventListener('click', generate);
     promptEl.addEventListener('keydown', e => { if (e.key === 'Enter' && e.ctrlKey) generate(); });
 
