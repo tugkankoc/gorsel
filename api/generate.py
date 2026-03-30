@@ -36,7 +36,7 @@ class handler(BaseHTTPRequestHandler):
                 model,
                 arguments={
                     "prompt": prompt,
-                    "resolution": data.get("resolution", "2K"),
+                    "resolution": data.get("resolution", "2k").lower(),
                     "aspect_ratio": data.get("aspect_ratio", "1:1"),
                 },
             )
