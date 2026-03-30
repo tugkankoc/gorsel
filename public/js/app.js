@@ -157,6 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     prompt,
+                    model: 'nano-banana-pro',
                     resolution: resolutionEl.value,
                     aspect_ratio: aspectRatioEl.value
                 })

@@ -31,13 +31,13 @@ class handler(BaseHTTPRequestHandler):
             os.environ.setdefault("HF_API_SECRET", os.getenv("HF_API_SECRET", ""))
             import higgsfield_client
 
+            model = data.get("model", "nano-banana-pro")
             result = higgsfield_client.subscribe(
-                "bytedance/seedream/v4/text-to-image",
+                model,
                 arguments={
                     "prompt": prompt,
                     "resolution": data.get("resolution", "2K"),
                     "aspect_ratio": data.get("aspect_ratio", "1:1"),
-                    "camera_fixed": False,
                 },
             )
             self._respond(200, {"url": result["images"][0]["url"]})
