@@ -103,41 +103,62 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- AI Prompt Iyilestirme ---
     async function enhancePrompt(text) {
+        // 1. Önce Pollinations AI ile iyileştir
         try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 15000);
+
             const res = await fetch('https://text.pollinations.ai/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                signal: controller.signal,
                 body: JSON.stringify({
                     messages: [
                         {
                             role: 'system',
-                            content: `You are an image prompt optimizer. Enhance the user's description into a detailed English prompt for AI image generation.
+                            content: `You are an image prompt optimizer. The user writes in Turkish or English. Translate and enhance into a detailed ENGLISH prompt for AI image generation.
 
 STRICT RULES:
-- Stay FAITHFUL to the user's EXACT subject. Do NOT change or replace what they asked for.
-- Do NOT add cultural stereotypes. "Istanbul" does NOT mean mosque. "Paris" does NOT mean Eiffel Tower. Focus on what the user specifically described.
-- If the user says "plaza", show a modern plaza. If they say "woman on mountain", show exactly that.
-- Add only TECHNICAL enhancements: lighting (golden hour, dramatic, soft), camera (85mm, wide angle, close-up), quality (photorealistic, ultra detailed, 8K, cinematic).
-- Add atmosphere and mood that fits the scene naturally.
+- Translate ALL Turkish words to English accurately. "sarışın" = "blonde", "araba" = "car", "kadın" = "woman", "güzel" = "beautiful", "deniz" = "sea", etc.
+- Stay FAITHFUL to the user's EXACT subject. Do NOT change what they asked for.
+- Do NOT add cultural stereotypes.
+- Add TECHNICAL enhancements: lighting, camera angle, composition, quality keywords (photorealistic, ultra detailed, 8K, cinematic).
 - Keep it under 80 words.
-- NEVER include any text, brand names, or words that might appear ON the image. Describe visuals only.
-- Always end with: no text, no letters, no watermark
-- Return ONLY the prompt. No explanations, no quotes, no prefixes.`
+- Describe visuals ONLY. Never include words/brand names that could appear as text on the image.
+- Always end the prompt with: , no text, no letters, no writing, no watermark
+- Return ONLY the prompt. No explanations, no quotes.`
                         },
                         { role: 'user', content: text }
                     ],
                     model: 'openai'
                 })
             });
+            clearTimeout(timeout);
             const enhanced = (await res.text()).trim().replace(/^["']|["']$/g, '');
             if (enhanced && enhanced.length > 15 && !enhanced.includes('```')) {
                 translatedTextEl.textContent = enhanced;
                 translationNote.style.display = 'flex';
                 return enhanced;
             }
+        } catch (e) {
+            console.log('Pollinations text API hatası, yedek çeviriye geçiliyor:', e.message);
+        }
+
+        // 2. Yedek: MyMemory ile sadece çevir
+        try {
+            const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=tr|en`);
+            const data = await res.json();
+            if (data.responseStatus === 200 && data.responseData?.translatedText) {
+                const translated = data.responseData.translatedText + ', photorealistic, ultra detailed, 8K, cinematic lighting, no text, no letters, no watermark';
+                translatedTextEl.textContent = translated;
+                translationNote.style.display = 'flex';
+                return translated;
+            }
         } catch {}
+
+        // 3. Son çare: orijinal metin + no text
         translationNote.style.display = 'none';
-        return text;
+        return text + ', no text, no letters, no watermark';
     }
 
     // --- Ana uretim fonksiyonu ---
@@ -152,7 +173,11 @@ STRICT RULES:
         showState('loading');
 
         loadingStatus.textContent = 'AI prompt iyileştiriliyor...';
-        const translatedPrompt = await enhancePrompt(prompt);
+        let translatedPrompt = await enhancePrompt(prompt);
+        // Garantiye al: her durumda no text ekle
+        if (!translatedPrompt.toLowerCase().includes('no text')) {
+            translatedPrompt += ', no text, no letters, no writing, no watermark';
+        }
 
         const provider = providerEl.value;
 
