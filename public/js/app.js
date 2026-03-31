@@ -27,10 +27,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const errorState = document.getElementById('errorState');
     const galleryGrid = document.getElementById('galleryGrid');
 
+    // Lightbox elements
+    const lightbox = document.getElementById('lightbox');
+    const lightboxImg = document.getElementById('lightboxImg');
+    const lightboxClose = document.getElementById('lightboxClose');
+    const lightboxPrev = document.getElementById('lightboxPrev');
+    const lightboxNext = document.getElementById('lightboxNext');
+    const lightboxCounter = document.getElementById('lightboxCounter');
+    const lightboxDots = document.getElementById('lightboxDots');
+    const lightboxDownload = document.getElementById('lightboxDownload');
+
     let gallery = JSON.parse(localStorage.getItem('gorselAjansGallery') || '[]');
     let currentImageUrls = [];
     let currentImageUrl = null;
     let currentPrompt = null;
+    let lightboxIndex = 0;
 
     const ASPECT_SIZES = {
         '1:1': [1024, 1024],
@@ -354,7 +365,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <img src="${url}" alt="Sonuç ${i + 1}">
                 ${imageUrls.length > 1 ? `<span class="result-badge">${i + 1}</span>` : ''}
             `;
-            card.addEventListener('click', () => selectResult(i));
+            card.addEventListener('click', () => openLightbox(i));
             resultGrid.appendChild(card);
         });
 
@@ -375,6 +386,97 @@ document.addEventListener('DOMContentLoaded', () => {
             card.classList.toggle('selected', i === index);
         });
     }
+
+    // --- Fullscreen Lightbox ---
+    function openLightbox(index) {
+        lightboxIndex = index;
+        updateLightbox();
+        lightbox.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeLightbox() {
+        lightbox.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    function updateLightbox() {
+        lightboxImg.classList.add('switching');
+        setTimeout(() => {
+            lightboxImg.src = currentImageUrls[lightboxIndex];
+            lightboxImg.classList.remove('switching');
+        }, 150);
+
+        lightboxCounter.textContent = `${lightboxIndex + 1} / ${currentImageUrls.length}`;
+
+        lightboxPrev.classList.toggle('hidden', lightboxIndex === 0);
+        lightboxNext.classList.toggle('hidden', lightboxIndex === currentImageUrls.length - 1);
+
+        // Dots
+        lightboxDots.innerHTML = '';
+        if (currentImageUrls.length > 1) {
+            currentImageUrls.forEach((_, i) => {
+                const dot = document.createElement('div');
+                dot.className = `lightbox-dot ${i === lightboxIndex ? 'active' : ''}`;
+                dot.addEventListener('click', () => { lightboxIndex = i; updateLightbox(); });
+                lightboxDots.appendChild(dot);
+            });
+        }
+
+        selectResult(lightboxIndex);
+    }
+
+    lightboxClose.addEventListener('click', closeLightbox);
+    document.querySelector('.lightbox-backdrop').addEventListener('click', closeLightbox);
+
+    lightboxPrev.addEventListener('click', () => {
+        if (lightboxIndex > 0) { lightboxIndex--; updateLightbox(); }
+    });
+
+    lightboxNext.addEventListener('click', () => {
+        if (lightboxIndex < currentImageUrls.length - 1) { lightboxIndex++; updateLightbox(); }
+    });
+
+    document.addEventListener('keydown', e => {
+        if (!lightbox.classList.contains('active')) return;
+        if (e.key === 'Escape') closeLightbox();
+        if (e.key === 'ArrowLeft' && lightboxIndex > 0) { lightboxIndex--; updateLightbox(); }
+        if (e.key === 'ArrowRight' && lightboxIndex < currentImageUrls.length - 1) { lightboxIndex++; updateLightbox(); }
+    });
+
+    // Touch swipe
+    let touchStartX = 0;
+    let touchStartY = 0;
+    lightbox.addEventListener('touchstart', e => {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+
+    lightbox.addEventListener('touchend', e => {
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        const dy = e.changedTouches[0].clientY - touchStartY;
+        if (Math.abs(dx) < 50 || Math.abs(dy) > Math.abs(dx)) return;
+        if (dx < 0 && lightboxIndex < currentImageUrls.length - 1) { lightboxIndex++; updateLightbox(); }
+        if (dx > 0 && lightboxIndex > 0) { lightboxIndex--; updateLightbox(); }
+    }, { passive: true });
+
+    lightboxDownload.addEventListener('click', async () => {
+        const url = currentImageUrls[lightboxIndex];
+        try {
+            const res = await fetch(url);
+            const blob = await res.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = `gorsel-ajans-${Date.now()}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(blobUrl);
+        } catch {
+            window.open(url, '_blank');
+        }
+    });
 
     function showError(message) {
         errorMessage.textContent = message;
