@@ -101,27 +101,31 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state === 'error') errorState.style.display = '';
     }
 
-    // --- Turkce -> Ingilizce ceviri ---
-    function isTurkish(text) {
-        if (/[çşğıÇŞĞİ]/.test(text)) return true;
-        const trWords = /\b(bir|ve|ile|için|olan|olan|çok|güzel|büyük|küçük|ama|fakat|nasıl|neden|kadar|gibi|daha|sonra|önce|üzerinde|altında|arasında|kadın|adam|kız|erkek|deniz|gökyüzü|orman|dağ|şehir|sokak|gece|gündüz|yüz|saç|göz)\b/i;
-        return trWords.test(text);
-    }
-
-    async function translateToEnglish(text) {
-        if (!isTurkish(text)) return text;
-
+    // --- AI Prompt Iyilestirme ---
+    async function enhancePrompt(text) {
         try {
-            const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=tr|en`);
-            const data = await res.json();
-            if (data.responseStatus === 200 && data.responseData?.translatedText) {
-                const translated = data.responseData.translatedText;
-                translatedTextEl.textContent = translated;
+            const res = await fetch('https://text.pollinations.ai/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    messages: [
+                        {
+                            role: 'system',
+                            content: 'You are an expert AI image generation prompt engineer. The user will give you a word, phrase, or sentence in any language. Transform it into the best possible detailed English prompt that will produce a stunning, photorealistic, high-quality image. Add relevant details: lighting, composition, camera angle, style, atmosphere, and quality keywords (8K, ultra detailed, cinematic, etc). Return ONLY the enhanced prompt text. No explanations, no quotes, no prefixes, no numbering.'
+                        },
+                        { role: 'user', content: text }
+                    ],
+                    model: 'openai'
+                })
+            });
+            const enhanced = (await res.text()).trim().replace(/^["']|["']$/g, '');
+            if (enhanced && enhanced.length > 15 && !enhanced.includes('```')) {
+                translatedTextEl.textContent = enhanced;
                 translationNote.style.display = 'flex';
-                return translated;
+                return enhanced;
             }
         } catch {}
-
+        translationNote.style.display = 'none';
         return text;
     }
 
@@ -136,8 +140,8 @@ document.addEventListener('DOMContentLoaded', () => {
         generateBtn.querySelector('span').textContent = 'Üretiliyor...';
         showState('loading');
 
-        loadingStatus.textContent = 'Prompt hazırlanıyor...';
-        const translatedPrompt = await translateToEnglish(prompt);
+        loadingStatus.textContent = 'AI prompt iyileştiriliyor...';
+        const translatedPrompt = await enhancePrompt(prompt);
 
         const provider = providerEl.value;
 
@@ -468,7 +472,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const blobUrl = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = blobUrl;
-            a.download = `gorsel-ajans-${Date.now()}.png`;
+            a.download = `tugkanapp-${Date.now()}.png`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -532,7 +536,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `gorsel-ajans-${Date.now()}.png`;
+            a.download = `tugkanapp-${Date.now()}.png`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
