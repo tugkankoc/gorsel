@@ -111,7 +111,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     messages: [
                         {
                             role: 'system',
-                            content: 'You are an expert AI image generation prompt engineer. The user will give you a word, phrase, or sentence in any language. Transform it into the best possible detailed English prompt that will produce a stunning, photorealistic, high-quality image. Add relevant details: lighting, composition, camera angle, style, atmosphere, and quality keywords (8K, ultra detailed, cinematic, etc). Return ONLY the enhanced prompt text. No explanations, no quotes, no prefixes, no numbering.'
+                            content: `You are an image prompt optimizer. Enhance the user's description into a detailed English prompt for AI image generation.
+
+STRICT RULES:
+- Stay FAITHFUL to the user's EXACT subject. Do NOT change or replace what they asked for.
+- Do NOT add cultural stereotypes. "Istanbul" does NOT mean mosque. "Paris" does NOT mean Eiffel Tower. Focus on what the user specifically described.
+- If the user says "plaza", show a modern plaza. If they say "woman on mountain", show exactly that.
+- Add only TECHNICAL enhancements: lighting (golden hour, dramatic, soft), camera (85mm, wide angle, close-up), quality (photorealistic, ultra detailed, 8K, cinematic).
+- Add atmosphere and mood that fits the scene naturally.
+- Keep it under 80 words.
+- Return ONLY the prompt. No explanations, no quotes, no prefixes.`
                         },
                         { role: 'user', content: text }
                     ],
@@ -201,15 +210,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- ComfyUI - Z-Image-Turbo ---
-    async function generateWithComfyUI(prompt) {
-        loadingStatus.textContent = 'ComfyUI bağlantısı kontrol ediliyor...';
-
-        const aspect = aspectRatioEl.value;
-        const [w, h] = ASPECT_SIZES[aspect] || [1024, 1024];
-        const seed = Math.floor(Math.random() * 999999999);
-        const count = parseInt(imageCountEl.value);
-
-        const workflow = {
+    function buildComfyWorkflow(prompt, w, h, seed) {
+        return {
             "1": {
                 "class_type": "UNETLoader",
                 "inputs": { "unet_name": "z_image_turbo_bf16.safetensors", "weight_dtype": "default" }
@@ -232,7 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             "6": {
                 "class_type": "EmptyLatentImage",
-                "inputs": { "width": w, "height": h, "batch_size": count }
+                "inputs": { "width": w, "height": h, "batch_size": 1 }
             },
             "7": {
                 "class_type": "KSampler",
@@ -258,26 +260,50 @@ document.addEventListener('DOMContentLoaded', () => {
                 "inputs": { "filename_prefix": "GorselAjans", "images": ["8", 0] }
             }
         };
+    }
+
+    async function generateWithComfyUI(prompt) {
+        loadingStatus.textContent = 'ComfyUI bağlantısı kontrol ediliyor...';
+
+        const aspect = aspectRatioEl.value;
+        const [w, h] = ASPECT_SIZES[aspect] || [1024, 1024];
+        const count = parseInt(imageCountEl.value);
 
         try {
-            loadingStatus.textContent = 'Görsel üretimi başlatılıyor...';
+            loadingStatus.textContent = `${count} farklı görsel üretimi başlatılıyor...`;
 
-            const queueRes = await fetch(`${COMFYUI_URL}/prompt`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt: workflow })
-            });
+            // Her görsel için tamamen farklı random seed ile ayrı istek gönder
+            const promptIds = [];
+            for (let i = 0; i < count; i++) {
+                const seed = Math.floor(Math.random() * 999999999);
+                const workflow = buildComfyWorkflow(prompt, w, h, seed);
 
-            if (!queueRes.ok) {
-                const err = await queueRes.json().catch(() => ({}));
-                throw new Error(err.error?.message || 'ComfyUI isteği başarısız');
+                const queueRes = await fetch(`${COMFYUI_URL}/prompt`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: workflow })
+                });
+
+                if (!queueRes.ok) {
+                    const err = await queueRes.json().catch(() => ({}));
+                    throw new Error(err.error?.message || 'ComfyUI isteği başarısız');
+                }
+
+                const data = await queueRes.json();
+                promptIds.push(data.prompt_id);
             }
 
-            const { prompt_id } = await queueRes.json();
             loadingStatus.textContent = `Z-Image-Turbo ${count} görsel üretiyor...`;
 
-            const imageUrls = await waitForComfyResults(prompt_id);
-            showResults(imageUrls);
+            // Tüm sonuçları bekle
+            const allUrls = [];
+            for (let i = 0; i < promptIds.length; i++) {
+                loadingStatus.textContent = `Görsel ${i + 1}/${count} işleniyor...`;
+                const urls = await waitForComfyResults(promptIds[i]);
+                allUrls.push(...urls);
+            }
+
+            showResults(allUrls);
 
         } catch (err) {
             if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
