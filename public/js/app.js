@@ -120,6 +120,8 @@ STRICT RULES:
 - Add only TECHNICAL enhancements: lighting (golden hour, dramatic, soft), camera (85mm, wide angle, close-up), quality (photorealistic, ultra detailed, 8K, cinematic).
 - Add atmosphere and mood that fits the scene naturally.
 - Keep it under 80 words.
+- NEVER include any text, brand names, or words that might appear ON the image. Describe visuals only.
+- Always end with: no text, no letters, no watermark
 - Return ONLY the prompt. No explanations, no quotes, no prefixes.`
                         },
                         { role: 'user', content: text }
@@ -230,7 +232,7 @@ STRICT RULES:
             },
             "5": {
                 "class_type": "TextEncodeZImageOmni",
-                "inputs": { "prompt": "", "clip": ["2", 0], "auto_resize_images": true }
+                "inputs": { "prompt": "text, letters, words, writing, watermark, signature, logo, caption, label, numbers, typo, font, alphabet, subtitle", "clip": ["2", 0], "auto_resize_images": true }
             },
             "6": {
                 "class_type": "EmptyLatentImage",
