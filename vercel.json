@@ -1,6 +1,9 @@
 {
   "framework": null,
   "outputDirectory": "public",
+  "rewrites": [
+    { "source": "/comfyui/:path*", "destination": "/api/comfyui?comfy_path=:path*" }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",

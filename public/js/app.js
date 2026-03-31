@@ -38,7 +38,8 @@ document.addEventListener('DOMContentLoaded', () => {
         '2:3': [832, 1216],
     };
 
-    const COMFYUI_URL = 'http://127.0.0.1:8188';
+    // Lokal: proxy üzerinden, Vercel: doğrudan ComfyUI (çalışmaz)
+    const COMFYUI_URL = '/comfyui';
 
     renderGallery();
     updateProviderUI();
@@ -61,7 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isPollinations) {
             activeBadge.textContent = `Pollinations - ${modelEl.options[modelEl.selectedIndex].text}`;
         } else if (isComfy) {
-            activeBadge.textContent = 'ComfyUI - FLUX Schnell (Lokal)';
+            activeBadge.textContent = 'ComfyUI - Z-Image-Turbo (Lokal)';
         } else {
             activeBadge.textContent = 'Higgsfield - Nano Banana Pro';
         }
@@ -143,43 +144,51 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const workflow = {
             "1": {
-                "class_type": "CheckpointLoaderSimple",
-                "inputs": { "ckpt_name": "flux1-schnell-fp8.safetensors" }
+                "class_type": "UNETLoader",
+                "inputs": { "unet_name": "z_image_turbo_bf16.safetensors", "weight_dtype": "default" }
             },
             "2": {
-                "class_type": "CLIPTextEncode",
-                "inputs": { "text": prompt, "clip": ["1", 1] }
+                "class_type": "CLIPLoader",
+                "inputs": { "clip_name": "qwen_3_4b.safetensors", "type": "qwen_image" }
             },
             "3": {
-                "class_type": "CLIPTextEncode",
-                "inputs": { "text": "text, watermark, blurry, low quality", "clip": ["1", 1] }
+                "class_type": "VAELoader",
+                "inputs": { "vae_name": "ae.safetensors" }
             },
             "4": {
+                "class_type": "TextEncodeZImageOmni",
+                "inputs": { "prompt": prompt, "clip": ["2", 0], "auto_resize_images": true }
+            },
+            "5": {
+                "class_type": "TextEncodeZImageOmni",
+                "inputs": { "prompt": "", "clip": ["2", 0], "auto_resize_images": true }
+            },
+            "6": {
                 "class_type": "EmptyLatentImage",
                 "inputs": { "width": w, "height": h, "batch_size": 1 }
             },
-            "5": {
+            "7": {
                 "class_type": "KSampler",
                 "inputs": {
                     "seed": seed,
-                    "steps": 4,
+                    "steps": 8,
                     "cfg": 1.0,
                     "sampler_name": "euler",
-                    "scheduler": "normal",
+                    "scheduler": "simple",
                     "denoise": 1.0,
                     "model": ["1", 0],
-                    "positive": ["2", 0],
-                    "negative": ["3", 0],
-                    "latent_image": ["4", 0]
+                    "positive": ["4", 0],
+                    "negative": ["5", 0],
+                    "latent_image": ["6", 0]
                 }
             },
-            "6": {
+            "8": {
                 "class_type": "VAEDecode",
-                "inputs": { "samples": ["5", 0], "vae": ["1", 2] }
+                "inputs": { "samples": ["7", 0], "vae": ["3", 0] }
             },
-            "7": {
+            "9": {
                 "class_type": "SaveImage",
-                "inputs": { "filename_prefix": "GorselAjans", "images": ["6", 0] }
+                "inputs": { "filename_prefix": "GorselAjans", "images": ["8", 0] }
             }
         };
 
@@ -199,7 +208,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const { prompt_id } = await queueRes.json();
-            loadingStatus.textContent = 'RTX 5090 görsel üretiyor...';
+            loadingStatus.textContent = 'Z-Image-Turbo görsel üretiyor...';
 
             // Sonucu bekle
             const imageUrl = await waitForComfyResult(prompt_id);
@@ -215,7 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function waitForComfyResult(promptId) {
-        const statusMessages = ['GPU modeli yüklüyor...', 'Latent space oluşturuluyor...', 'Sampling yapılıyor...', 'VAE decode ediliyor...'];
+        const statusMessages = ['Z-Image-Turbo modeli yükleniyor...', 'Qwen text encoder çalışıyor...', 'Sampling yapılıyor (8 adım)...', 'VAE decode ediliyor...'];
         let msgIndex = 0;
         const statusInterval = setInterval(() => {
             if (msgIndex < statusMessages.length) { loadingStatus.textContent = statusMessages[msgIndex]; msgIndex++; }
