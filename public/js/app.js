@@ -7,16 +7,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const resolutionEl = document.getElementById('resolution');
     const resolutionGroup = document.getElementById('resolutionGroup');
     const aspectRatioEl = document.getElementById('aspectRatio');
+    const imageCountEl = document.getElementById('imageCount');
     const generateBtn = document.getElementById('generateBtn');
     const downloadBtn = document.getElementById('downloadBtn');
     const newTabBtn = document.getElementById('newTabBtn');
     const regenerateBtn = document.getElementById('regenerateBtn');
     const retryBtn = document.getElementById('retryBtn');
     const clearGalleryBtn = document.getElementById('clearGallery');
-    const resultImage = document.getElementById('resultImage');
     const errorMessage = document.getElementById('errorMessage');
     const loadingStatus = document.getElementById('loadingStatus');
     const activeBadge = document.getElementById('activeBadge');
+    const translationNote = document.getElementById('translationNote');
+    const translatedTextEl = document.getElementById('translatedText');
+    const resultGrid = document.getElementById('resultGrid');
 
     const emptyState = document.getElementById('emptyState');
     const loadingState = document.getElementById('loadingState');
@@ -25,6 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const galleryGrid = document.getElementById('galleryGrid');
 
     let gallery = JSON.parse(localStorage.getItem('gorselAjansGallery') || '[]');
+    let currentImageUrls = [];
     let currentImageUrl = null;
     let currentPrompt = null;
 
@@ -38,7 +42,6 @@ document.addEventListener('DOMContentLoaded', () => {
         '2:3': [832, 1216],
     };
 
-    // Lokal: proxy üzerinden, Vercel: doğrudan ComfyUI (çalışmaz)
     const COMFYUI_URL = '/comfyui';
 
     renderGallery();
@@ -57,7 +60,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const isComfy = provider === 'comfyui';
 
         modelGroup.style.display = isPollinations ? '' : 'none';
-        resolutionGroup.style.display = 'none';
 
         if (isPollinations) {
             activeBadge.textContent = `Pollinations - ${modelEl.options[modelEl.selectedIndex].text}`;
@@ -72,6 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
         chip.addEventListener('click', () => {
             promptEl.value = chip.dataset.prompt;
             charCount.textContent = promptEl.value.length;
+            translationNote.style.display = 'none';
             promptEl.focus();
         });
     });
@@ -87,6 +90,31 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state === 'error') errorState.style.display = '';
     }
 
+    // --- Turkce -> Ingilizce ceviri ---
+    function isTurkish(text) {
+        if (/[çşğıÇŞĞİ]/.test(text)) return true;
+        const trWords = /\b(bir|ve|ile|için|olan|olan|çok|güzel|büyük|küçük|ama|fakat|nasıl|neden|kadar|gibi|daha|sonra|önce|üzerinde|altında|arasında|kadın|adam|kız|erkek|deniz|gökyüzü|orman|dağ|şehir|sokak|gece|gündüz|yüz|saç|göz)\b/i;
+        return trWords.test(text);
+    }
+
+    async function translateToEnglish(text) {
+        if (!isTurkish(text)) return text;
+
+        try {
+            const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=tr|en`);
+            const data = await res.json();
+            if (data.responseStatus === 200 && data.responseData?.translatedText) {
+                const translated = data.responseData.translatedText;
+                translatedTextEl.textContent = translated;
+                translationNote.style.display = 'flex';
+                return translated;
+            }
+        } catch {}
+
+        return text;
+    }
+
+    // --- Ana uretim fonksiyonu ---
     async function generate() {
         const prompt = promptEl.value.trim();
         if (!prompt) { promptEl.focus(); return; }
@@ -97,50 +125,74 @@ document.addEventListener('DOMContentLoaded', () => {
         generateBtn.querySelector('span').textContent = 'Üretiliyor...';
         showState('loading');
 
+        loadingStatus.textContent = 'Prompt hazırlanıyor...';
+        const translatedPrompt = await translateToEnglish(prompt);
+
         const provider = providerEl.value;
 
         if (provider === 'pollinations') {
-            await generateWithPollinations(prompt);
+            await generateWithPollinations(translatedPrompt);
         } else if (provider === 'comfyui') {
-            await generateWithComfyUI(prompt);
+            await generateWithComfyUI(translatedPrompt);
         } else {
-            await generateWithHiggsfield(prompt);
+            await generateWithHiggsfield(translatedPrompt);
         }
     }
 
-    // Pollinations
+    // --- Pollinations ---
     async function generateWithPollinations(prompt) {
         const aspect = aspectRatioEl.value;
         const [w, h] = ASPECT_SIZES[aspect] || [1024, 1024];
         const model = modelEl.value;
-        const seed = Math.floor(Math.random() * 999999);
-        const encoded = encodeURIComponent(prompt);
+        const count = parseInt(imageCountEl.value);
 
-        const imageUrl = `https://image.pollinations.ai/prompt/${encoded}?width=${w}&height=${h}&model=${model}&seed=${seed}&nologo=true&enhance=true`;
+        loadingStatus.textContent = 'Pollinations API ile görseller üretiliyor...';
 
-        loadingStatus.textContent = 'Pollinations API ile görsel üretiliyor...';
-
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-
-        const statusMessages = ['AI modeli yükleniyor...', 'Prompt analiz ediliyor...', 'Görsel oluşturuluyor...', 'Detaylar ekleniyor...', 'Son rötuşlar yapılıyor...'];
+        const statusMessages = ['AI modeli yükleniyor...', 'Prompt analiz ediliyor...', 'Görseller oluşturuluyor...', 'Detaylar ekleniyor...', 'Son rötuşlar yapılıyor...'];
         let msgIndex = 0;
         const statusInterval = setInterval(() => {
             if (msgIndex < statusMessages.length) { loadingStatus.textContent = statusMessages[msgIndex]; msgIndex++; }
         }, 3000);
 
-        img.onload = () => { clearInterval(statusInterval); showResult(imageUrl); };
-        img.onerror = () => { clearInterval(statusInterval); showError('Görsel yüklenemedi. Lütfen tekrar deneyin.'); };
-        img.src = imageUrl;
+        const encoded = encodeURIComponent(prompt);
+        const promises = [];
+
+        for (let i = 0; i < count; i++) {
+            const seed = Math.floor(Math.random() * 999999);
+            const imageUrl = `https://image.pollinations.ai/prompt/${encoded}?width=${w}&height=${h}&model=${model}&seed=${seed}&nologo=true&enhance=true`;
+
+            promises.push(new Promise((resolve, reject) => {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => resolve(imageUrl);
+                img.onerror = () => reject(new Error('Yüklenemedi'));
+                img.src = imageUrl;
+            }));
+        }
+
+        try {
+            const results = await Promise.allSettled(promises);
+            clearInterval(statusInterval);
+            const urls = results.filter(r => r.status === 'fulfilled').map(r => r.value);
+            if (urls.length > 0) {
+                showResults(urls);
+            } else {
+                showError('Görseller yüklenemedi. Lütfen tekrar deneyin.');
+            }
+        } catch {
+            clearInterval(statusInterval);
+            showError('Görseller yüklenemedi. Lütfen tekrar deneyin.');
+        }
     }
 
-    // ComfyUI - Lokal FLUX Schnell
+    // --- ComfyUI - Z-Image-Turbo ---
     async function generateWithComfyUI(prompt) {
         loadingStatus.textContent = 'ComfyUI bağlantısı kontrol ediliyor...';
 
         const aspect = aspectRatioEl.value;
         const [w, h] = ASPECT_SIZES[aspect] || [1024, 1024];
         const seed = Math.floor(Math.random() * 999999999);
+        const count = parseInt(imageCountEl.value);
 
         const workflow = {
             "1": {
@@ -165,7 +217,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             "6": {
                 "class_type": "EmptyLatentImage",
-                "inputs": { "width": w, "height": h, "batch_size": 1 }
+                "inputs": { "width": w, "height": h, "batch_size": count }
             },
             "7": {
                 "class_type": "KSampler",
@@ -195,7 +247,6 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             loadingStatus.textContent = 'Görsel üretimi başlatılıyor...';
 
-            // Prompt gönder
             const queueRes = await fetch(`${COMFYUI_URL}/prompt`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -208,11 +259,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const { prompt_id } = await queueRes.json();
-            loadingStatus.textContent = 'Z-Image-Turbo görsel üretiyor...';
+            loadingStatus.textContent = `Z-Image-Turbo ${count} görsel üretiyor...`;
 
-            // Sonucu bekle
-            const imageUrl = await waitForComfyResult(prompt_id);
-            showResult(imageUrl);
+            const imageUrls = await waitForComfyResults(prompt_id);
+            showResults(imageUrls);
 
         } catch (err) {
             if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
@@ -223,7 +273,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function waitForComfyResult(promptId) {
+    async function waitForComfyResults(promptId) {
         const statusMessages = ['Z-Image-Turbo modeli yükleniyor...', 'Qwen text encoder çalışıyor...', 'Sampling yapılıyor (8 adım)...', 'VAE decode ediliyor...'];
         let msgIndex = 0;
         const statusInterval = setInterval(() => {
@@ -240,12 +290,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         clearInterval(statusInterval);
                         const outputs = data[promptId].outputs;
 
-                        // SaveImage node'unun çıktısını bul
                         for (const nodeId in outputs) {
                             if (outputs[nodeId].images && outputs[nodeId].images.length > 0) {
-                                const img = outputs[nodeId].images[0];
-                                const imageUrl = `${COMFYUI_URL}/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || '')}&type=${img.type || 'output'}`;
-                                resolve(imageUrl);
+                                const urls = outputs[nodeId].images.map(img =>
+                                    `${COMFYUI_URL}/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || '')}&type=${img.type || 'output'}`
+                                );
+                                resolve(urls);
                                 return;
                             }
                         }
@@ -263,7 +313,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Higgsfield
+    // --- Higgsfield ---
     async function generateWithHiggsfield(prompt) {
         loadingStatus.textContent = 'Higgsfield API\'ye istek gönderiliyor...';
 
@@ -281,22 +331,49 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'İstek başarısız');
-            showResult(data.url);
+            showResults([data.url]);
         } catch (err) {
             showError(err.message);
         }
     }
 
-    function showResult(imageUrl) {
-        currentImageUrl = imageUrl;
-        resultImage.src = imageUrl;
+    // --- Sonuclari goster (coklu gorsel) ---
+    function showResults(imageUrls) {
+        currentImageUrls = imageUrls;
+        currentImageUrl = imageUrls[0];
+
+        resultGrid.innerHTML = '';
+
+        const gridClass = imageUrls.length === 1 ? 'single' : imageUrls.length === 2 ? 'double' : 'triple';
+        resultGrid.className = `result-grid ${gridClass}`;
+
+        imageUrls.forEach((url, i) => {
+            const card = document.createElement('div');
+            card.className = `result-card ${i === 0 ? 'selected' : ''}`;
+            card.innerHTML = `
+                <img src="${url}" alt="Sonuç ${i + 1}">
+                ${imageUrls.length > 1 ? `<span class="result-badge">${i + 1}</span>` : ''}
+            `;
+            card.addEventListener('click', () => selectResult(i));
+            resultGrid.appendChild(card);
+        });
+
         showState('result');
         resetButton();
 
-        gallery.unshift({ url: imageUrl, prompt: currentPrompt, date: new Date().toISOString() });
-        if (gallery.length > 20) gallery = gallery.slice(0, 20);
+        imageUrls.forEach(url => {
+            gallery.unshift({ url, prompt: currentPrompt, date: new Date().toISOString() });
+        });
+        if (gallery.length > 30) gallery = gallery.slice(0, 30);
         localStorage.setItem('gorselAjansGallery', JSON.stringify(gallery));
         renderGallery();
+    }
+
+    function selectResult(index) {
+        currentImageUrl = currentImageUrls[index];
+        resultGrid.querySelectorAll('.result-card').forEach((card, i) => {
+            card.classList.toggle('selected', i === index);
+        });
     }
 
     function showError(message) {
@@ -325,12 +402,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
             div.addEventListener('click', () => {
+                currentImageUrls = [item.url];
                 currentImageUrl = item.url;
                 currentPrompt = item.prompt;
-                resultImage.src = item.url;
                 promptEl.value = item.prompt;
                 charCount.textContent = item.prompt.length;
-                showState('result');
+                showResults([item.url]);
             });
             galleryGrid.appendChild(div);
         });
